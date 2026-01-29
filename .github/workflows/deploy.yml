@@ -18,14 +18,18 @@ jobs:
         node-version: '18'
         cache: 'npm'
     
-    - name: 安装依赖
-      run: |
-        npm install
-        cd client && npm install
+    - name: 安装根目录依赖
+      run: npm install
     
-    - name: 构建前端
+    - name: 安装前端依赖
       run: |
-        cd client && npm run build
+        cd client
+        npm install
+    
+    - name: 构建前端 (增加内存限制)
+      run: |
+        cd client
+        NODE_OPTIONS="--max_old_space_size=4096" npm run build
     
     - name: 部署到服务器
       uses: appleboy/ssh-action@v0.1.5
@@ -34,9 +38,20 @@ jobs:
         username: ${{ secrets.USERNAME }}
         password: ${{ secrets.PASSWORD }}
         script: |
-          cd /root/app
-          git pull origin main
+          # 进入项目目录
+          cd /root/app || { echo "目录不存在，创建并克隆"; mkdir -p /root/app; cd /root; git clone https://github.com/${{ github.repository }}.git app; cd app; }
+          
+          # 更新代码
+          git pull origin main || git pull origin master
+          
+          # 安装依赖
           npm install
-          cd client && npm install && npm run build && cd ..
+          cd client && npm install && cd ..
+          
+          # 构建前端
+          cd client && NODE_OPTIONS="--max_old_space_size=2048" npm run build && cd ..
+          
+          # 重启服务
           pm2 restart user-info-detector || pm2 start server/server.js --name user-info-detector
-          echo "部署完成！"
+          
+          echo "✅ 部署完成！访问 http://121.43.143.169:3001"

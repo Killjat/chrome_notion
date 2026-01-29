@@ -1,0 +1,42 @@
+name: 自动部署到服务器
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装依赖
+      run: |
+        npm install
+        cd client && npm install
+    
+    - name: 构建前端
+      run: |
+        cd client && npm run build
+    
+    - name: 部署到服务器
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        script: |
+          cd /root/app
+          git pull origin main
+          npm install
+          cd client && npm install && npm run build && cd ..
+          pm2 restart user-info-detector || pm2 start server/server.js --name user-info-detector
+          echo "部署完成！"
